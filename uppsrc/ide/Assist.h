@@ -56,6 +56,7 @@ struct Navigator {
 	void NaviSort();
 
 	void           Navigate();
+	void           Navigate(bool usage);
 	void           NavigatorClick();
 	void           NavigatorEnter();
 	void           SyncCursor();
@@ -205,7 +206,7 @@ struct AssistEditor : CodeEditor, Navigator {
 	AnnotationItem FindCurrentAnnotation(bool allow_define = false);
 
 	void           DCopy();
-	String         FindCurrentNest(String *local_bases = nullptr);
+	AnnotationItem FindCurrentNest(String *local_bases = nullptr);
 	void           Virtuals();
 	void           Events();
 
@@ -238,6 +239,8 @@ struct AssistEditor : CodeEditor, Navigator {
 	void           SerializeNavigator(Stream& s);
 	void           SerializeNavigatorWorkspace(Stream& s);
 	void           SyncNavigatorPlacement();
+
+	void           ConvertToOverrides();
 
 	Event<int>     WhenFontScroll;
 	Event<>        WhenSelectionChanged;
