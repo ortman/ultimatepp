@@ -866,7 +866,9 @@ void Ide::AssistMenu(Bar& menu)
 {
 	LTIMESTOP("AssistMenu");
 	menu.Add(!designer, AK_ASSIST, [=] { editor.Assist(true); });
-	menu.Add(!designer, AK_JUMPS, [=] { ContextGoto(); });
+	auto& m = menu.Add(!designer, AK_JUMPS, [=] { ContextGoto(); });
+	if(IsInLogFile())
+		m.Text("Try to find the source of log line");
 	menu.Add(!designer, AK_SWAPS, THISBACK(SwapS));
 	menu.Add(!designer, AK_DCOPY, callback(&editor, &AssistEditor::DCopy));
 	menu.Add(!designer, AK_IDUSAGE, THISBACK(IdUsage));
@@ -891,8 +893,6 @@ void Ide::BrowseMenu(Bar& menu)
 				.Help("Go to given line");
 			AssistMenu(menu);
 			menu.Add(!designer, AK_GO_TO_LINE, THISBACK(GoToLine));
-			AssistEdit(menu);
-			Reformat(menu);
 			menu.MenuSeparator();
 		}
 
@@ -999,7 +999,7 @@ void Ide::MainMenu(Bar& menu)
 		.Help("Package & file functions, exports, bookmarks");
 	menu.Add("Edit", THISBACK(Edit))
 		.Help("Clipboard, find & replace, spaces / tabs conversion, scope highlighting");
-	menu.Sub("Find", [=](Bar& bar) { SearchMenu(bar); });
+	menu.Sub("Search", [=](Bar& bar) { SearchMenu(bar); });
 	if(HasMacros())
 		menu.Add("Macro", THISBACK(MacroMenu))
 			.Help("Editor & IDE macros");

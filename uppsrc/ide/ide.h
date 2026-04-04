@@ -101,6 +101,9 @@ protected:
 	FrameBottom<EditString> input;
 	String line;
 	int    serial;
+	
+	String       text_buffer;
+	TimeCallback flush;
 
 	void CheckEndGroup();
 	void FlushConsole();
@@ -292,6 +295,8 @@ struct EditorTabBar : public FileTabs {
 
 int    memcmp_i(const char *s, const char *t, int n);
 
+int    GetMatchLen(const char *s, const char *t);
+
 String ResolveTParam(const String& type, const Vector<String>& tparam);
 void   ResolveTParam(Vector<String>& type, const Vector<String>& tparam);
 String Qualify(const String& scope, const String& type, const String& usings);
@@ -387,7 +392,6 @@ public:
 	virtual   void   Activate();
 	virtual   void   Layout();
 	virtual   void   Skin();
-	virtual   bool   IsCustomTitleBarDragArea(Point p);
 
 	virtual   bool   IsVerbose() const;
 	virtual   void   PutConsole(const char *s);
@@ -627,8 +631,14 @@ public:
 	byte      default_charset;
 	bool      indent_spaces;
 	bool      show_status_bar;
-	bool      toolbar_in_row;
+	bool      toolbar_in_row =
+#ifdef PLATFORM_MACOS
+		true;
+#else
+		false;
+#endif
 	bool      disable_custom_caption = false;
+	bool      disable_custom_caption2 = true; // this one is initial config
 	bool      show_tabs;
 	bool      show_spaces;
 	bool      warnwhitespace;
@@ -670,13 +680,13 @@ public:
 	bool      win_deactivated = false;
 	bool      block_caret = false;
 	bool      bar_branch = true;
+	bool      macos_update_icon = false;
 	bool      search_downloads =
 #ifdef PLATFORM_MACOS
-		false
+		false;
 #else
-		true
+		true;
 #endif
-	;
 		
 
 	// Formats editor's code with Ide format parameters
@@ -691,7 +701,8 @@ public:
 	ParentCtrl              barrect; // to do custom caption clipping
 	CursorInfoCtrl          display, display_main;
 	ImageCtrl               indeximage, indeximage2;
-	bool                    fileinfo_visible = false; // show file time when cursor points to display
+	bool                    fileinfo_visible = false; // show file info when mouse cursor points to display
+	bool                    assemblyinfo_visible = false; // show assembly info when mouse cursor points to display_main
 
 	byte      hilite_scope;
 	int       hilite_bracket;
@@ -1081,6 +1092,8 @@ public:
 	String    GetTargetLogPath();
 	String    GetIdeLogPath();
 	void      OpenLog(const String& logFilePath);
+	bool      IsInLogFile();
+	bool      FindLOG();
 
 	String    include_path; // cached value of include path, GetIncludePath
 
@@ -1177,7 +1190,9 @@ public:
 	void      SyncClang();
 
 	Rect      GetFileInfoRect();
-	void      PaintFileInfo(Draw& w);
+	String    GetAssemblyInfoQtf();
+	Rect      GetAssemblyInfoRect(Size *tsz = nullptr);
+	void      PaintTitlebarInfo(Draw& w);
 
 	void      PassEditor(AssistEditor& editor2);
 	void      PassEditor();

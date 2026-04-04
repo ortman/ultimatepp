@@ -127,19 +127,24 @@ void TextCompareCtrl::LeftDouble(Point pt, dword keyflags)
 
 void TextCompareCtrl::MouseMove(Point pt, dword flags)
 {
+	int bl = -1;
 	if(HasCapture()) {
 		DoSelection(pt.y, true);
-		Tip("");
 	}
-	else {
-		const Blame *b = GetBlame(pt);
-		if(b)
-			Tip("\1[g@b " + Format("%04d-%02d-%02d %02d:%02d:%02d ",
-			                       b->time.year, b->time.month, b->time.day,
-			                       b->time.hour, b->time.minute, b->time.second) +
-	               "[@r \1" + b->author + "\1&" +
-	               "[@k* \1" + b->summary + "\1]&"
-	               "[@g " + b->hash);
+	else
+	if(GetBlame(pt))
+		bl = scroll.Get().y + pt.y / letter.cy;
+	if(bl != blame_line) {
+		blame_line = bl;
+		Refresh();
+	}
+}
+
+void Upp::TextCompareCtrl::MouseLeave()
+{
+	if(blame_line >= 0) {
+		blame_line = -1;
+		Refresh();
 	}
 }
 
@@ -262,7 +267,7 @@ int TextCompareCtrl::GetMatchLen(const wchar *s1, const wchar *s2, int len)
 	return len;
 }
 
-bool TextCompareCtrl::LineDiff(bool left, Vector<LineEdit::Highlight>& hln, Color eq_color,
+bool TextCompareCtrl::LineDiff(Vector<LineEdit::Highlight>& hln, Color eq_color,
                                const wchar *s1, int l1, int h1,
                                const wchar *s2, int l2, int h2, int depth)
 {
@@ -287,17 +292,18 @@ bool TextCompareCtrl::LineDiff(bool left, Vector<LineEdit::Highlight>& hln, Colo
 				}
 			}
 		}
-	
-	if(matchlen > 1 || matchlen && !IsAlNum(s1[p1])) {
+
+	if(matchlen > 1) {
 		for(int i = 0; i < matchlen; i++)
-			hln[(left ? p1 : p2) + i].paper = eq_color;
+			hln[p1 + i].paper = eq_color;
 
 		if(++depth < 20) {
-			LineDiff(left, hln, eq_color, s1, l1, p1, s2, l2, p2, depth);
-			LineDiff(left, hln, eq_color, s1, p1 + matchlen, h1, s2, p2 + matchlen, h2, depth);
+			LineDiff(hln, eq_color, s1, l1, p1, s2, l2, p2, depth);
+			LineDiff(hln, eq_color, s1, p1 + matchlen, h1, s2, p2 + matchlen, h2, depth);
 		}
 		return true;
 	}
+
 	return false;
 }
 
@@ -316,14 +322,26 @@ void TextCompareCtrl::ScrollBarItems::Paint(Draw& w)
 void TextCompareCtrl::PaintScrollBarItems(Draw& w)
 {
 	Rect sr = scroll.y.GetSliderRect();
-	for(int pass = 0; pass < 2; pass++) {
-		Size isz = pass ? DiffImg::dot1().GetSize() : DiffImg::dot().GetSize();
-		for(int i = 0; i < lines.GetCount(); i++)
-			if(lines[i].level > 1)
-				w.DrawImage(sr.CenterPoint().x - isz.cx / 2,
-				            sr.top + scroll.y.GetSliderPos(i) - isz.cy / 2,
-				            pass ? DiffImg::dot1() : DiffImg::dot());
+	Size sz = sr.GetSize();
+	if(scrollbar_items_dirty || scrollbar_items.GetSize() != sz) {
+		ImagePainter p(sz);
+		p.Clear();
+		for(int pass = 0; pass < 2; pass++) {
+			Size isz = pass ? DiffImg::dot1().GetSize() : DiffImg::dot().GetSize();
+			int py = Null;
+			for(int i = 0; i < lines.GetCount(); i++)
+				if(lines[i].level > 1) {
+					int y = scroll.y.GetSliderPos(i) - sr.top - isz.cy / 2;
+					if(py != y) {
+						p.DrawImage(sz.cx / 2 - isz.cx / 2, y, pass ? DiffImg::dot1() : DiffImg::dot());
+						py = y;
+					}
+				}
+		}
+		scrollbar_items = p;
+		scrollbar_items_dirty = false;
 	}
+	w.DrawImage(sr.left, sr.top, scrollbar_items);
 }
 
 void TextCompareCtrl::Paint(Draw& draw)
@@ -363,6 +381,12 @@ void TextCompareCtrl::Paint(Draw& draw)
 		}
 	}
 	
+	int blame_y = -1;
+	Color  blame_paper;
+	String blame_qtf;
+	
+	int blame_y0 = -1;
+
 	if(blame.GetCount()) {
 		int  ty = (letter.cy - blame_font.GetCy()) / 2;
 		Date now = GetSysDate();
@@ -372,11 +396,11 @@ void TextCompareCtrl::Paint(Draw& draw)
 			const Line& l = lines[i];
 			int y = i * letter.cy - offset.cy;
 			Color paper =  missingpaper;
-			Date dt;
+			Time tm;
 			String date, author, hash, summary;
 			if(!IsNull(l.number) && l.number >= 0 && l.number <= blame.GetCount()) {
 				Blame& m = blame[l.number - 1];
-				dt = m.time;
+				tm = m.time;
 				date = Format("%04d-%02d-%02d ", m.time.year, m.time.month, m.time.day);
 				author = m.author;
 				hash = m.hash;
@@ -394,15 +418,26 @@ void TextCompareCtrl::Paint(Draw& draw)
 			if(bli == 0) {
 				if(i != first_line)
 					draw.DrawRect(n_width, y, blame_width, 1, SLtGray());
-				int age = now - dt;
+				int age = now - (Date)tm;
 				draw.DrawText(n_width, y + ty, date, blame_font, age < 14 ? SLtBlue() : age < 365 ? SBlue() : SGray());
 				draw.DrawText(n_width + GetTextSize(date, blame_font).cx, y + ty, author, blame_font, SRed());
 				last_hash = hash;
+				blame_y0 = y;
 			}
 			if(bli == 1)
 				draw.DrawText(n_width, y + ty, summary, blame_font);
 			if(bli == 2 && hash.GetCount() > 6)
 				draw.DrawText(n_width, y + ty, hash.Mid(0, 6), blame_font, SGreen());
+			if(i == blame_line) {
+				blame_qtf = "[g@b " + Format("%04d-%02d-%02d %02d:%02d:%02d ",
+							                 tm.year, tm.month, tm.day,
+							                 tm.hour, tm.minute, tm.second) +
+				             "[@r \1" + author + "\1&" +
+				             "[@k* \1" + summary + "\1]&"
+				             "[@g " + hash;
+				blame_y = blame_y0;
+				blame_paper = paper;
+			}
 			draw.End();
 			draw.DrawRect(n_width + blame_width - 1, y, 1, letter.cy, Gray());
 			bli++;
@@ -450,14 +485,16 @@ void TextCompareCtrl::Paint(Draw& draw)
 			if(show_diff_highlight) {
 				WString ln_diff = l.text_diff.ToWString();
 				ln_diff = ExpandTabs(ln_diff);
-				if((int64)ln_diff.GetCount() * ln.GetCount() < 50000) {
-					if(left)
-						ldiff = LineDiff(true, hln, paper_color,
-						                 ~ln, 0, ln.GetCount(), ~ln_diff, 0, ln_diff.GetCount(), 0);
-					else
-						ldiff = LineDiff(false, hln, paper_color,
-						                 ~ln_diff, 0, ln_diff.GetCount(), ~ln, 0, ln.GetCount(), 0);
-				}
+				int l1 = 0;
+				int l2 = 0;
+				while(l1 < ln.GetCount() && findarg(ln[l1], ' ', '\t') >= 0)
+					l1++;
+				while(l2 < ln_diff.GetCount() && findarg(ln_diff[l2], ' ', '\t') >= 0)
+					l2++;
+				ldiff = LineDiff(hln, paper_color, ~ln, l1, min(ln.GetCount(), 1000), ~ln_diff, l2, min(ln_diff.GetCount(), 1000), 0);
+				if(ldiff && DirDiffDlg::GetIgnoreIndentation(this))
+					for(int i = 0; i < l1; i++)
+						hln[i].paper = paper_color;
 			}
 			if(show_white_space) {
 				for(int i = ln.GetCount(); i >= 0; --i) {
@@ -518,6 +555,18 @@ void TextCompareCtrl::Paint(Draw& draw)
 	draw.DrawRect(0, lcy, sz.cx, sz.cy - lcy, SGray());
 	draw.End();
 	draw.DrawRect(0, lcy, n_width, sz.cy - lcy, number_bg);
+	
+	if(blame_y >= 0 && HasMouse()) {
+		RichText txt = ParseQTF(blame_qtf);
+		txt.ApplyZoom(GetRichTextStdScreenZoom());
+		int cx = clamp(txt.GetWidth(), 10, sz.cx - n_width);
+		int cy = txt.GetHeight(cx);
+		if(blame_y + cy > sz.cy)
+			blame_y = max(sz.cy - cy, 0);
+		draw.DrawRect(n_width, blame_y, cx + 2 + DPI(8), cy + 2, blame_paper);
+		DrawFrame(draw, n_width - 1, blame_y, cx + 2 + DPI(8), cy + 2, SLtGray());
+		txt.Paint(draw, n_width + DPI(4), blame_y + 1, cx);
+	}
 }
 
 void TextCompareCtrl::TabSize(int t)
@@ -557,6 +606,7 @@ void TextCompareCtrl::Layout()
 	if(blame.GetCount())
 		n_width += Zx(8 * 40);
 	scroll.Set(scroll, (scroll.GetReducedViewSize() - Size(n_width, 0)) / letter, Size(maxwidth, lines.GetCount()));
+	scrollbar_items_dirty = true;
 	Refresh();
 }
 
@@ -606,6 +656,7 @@ void TextCompareCtrl::Set(int line, String text, bool diff, int number, int leve
 		maxwidth = tl;
 		Layout();
 	}
+	scrollbar_items_dirty = true;
 }
 
 void TextCompareCtrl::SelfScroll()

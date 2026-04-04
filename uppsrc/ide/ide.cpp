@@ -570,7 +570,16 @@ void Ide::SetIdeState(int newstate)
 }
 
 void Ide::MakeIcon() {
+#ifdef PLATFORM_COCOA
+	if(!macos_update_icon) {
+		String badge = IsOpen() ? main : "";
+		SetBadgeLabel(badge);
+		return;
+	}
+#endif
+
 	Image li = IdeImg::Icon256();
+#ifndef PLATFORM_LINUX // Kubuntu is using this icon for window while ignoring it in taskbar...
 	WString mp = main.ToWString();
 	if(!IsNull(mp))
 	{
@@ -601,6 +610,7 @@ void Ide::MakeIcon() {
 			                                         IdeImg::IconBuildingLarge256()));
 		li = idraw;
 	}
+#endif
 	LargeIcon(li);
 }
 
@@ -647,7 +657,7 @@ Rect Ide::GetFileInfoRect()
 	return r - GetScreenRect().TopLeft();
 }
 
-void Ide::PaintFileInfo(Draw& w)
+void Ide::PaintTitlebarInfo(Draw& w)
 {
 	if(fileinfo_visible) {
 		Time tm(edittime);
@@ -688,6 +698,89 @@ void Ide::PaintFileInfo(Draw& w)
 		Size sz = r.GetSize();
 		txt.Paint(w, DPI(2) + r.left, (sz.cy - tsz.cy) / 2 + r.top, INT_MAX / 2);
 	}
+	if(assemblyinfo_visible) {
+		Vector<String> nests = GetUppDirs();
+		Size tsz;
+		Rect r = GetAssemblyInfoRect(&tsz);
+		RichText txt = ParseQTF(GetAssemblyInfoQtf());
+		txt.ApplyZoom(GetRichTextStdScreenZoom());
+		DrawFrame(w, r, SBlack());
+		r.Deflate(1, 1);
+		w.DrawRect(r, SColorPaper());
+		Size sz = r.GetSize();
+		txt.Paint(w, DPI(2) + r.left, (sz.cy - tsz.cy) / 2 + r.top, tsz.cx);
+	}
+}
+
+String Ide::GetAssemblyInfoQtf()
+{
+	String qtf  = "[g ";
+	const Workspace& wspc = GetIdeWorkspace();
+	Vector<String> nests = GetUppDirs();
+	struct PkgInfo : Moveable<PkgInfo> {
+		String name;
+		bool   bold, italic;
+		Color  ink;
+	};
+	VectorMap<String, Vector<PkgInfo>> map;
+	for(String s : nests) {
+		String nest = UnixPath(s);
+		for(int i = 0; i < wspc.GetCount(); i++)
+			if(UnixPath(NormalizePath(PackageDirectory(wspc[i]))).StartsWith(nest)) {
+				PkgInfo& m = map.GetAdd(nest).Add();
+				m.name = wspc[i];
+				const Package& p = wspc.GetPackage(i);
+				m.bold = p.bold || i == 0;
+				m.italic = p.italic;
+				m.ink = p.ink;
+			}
+	}
+	for(int i = 0; i < map.GetCount(); i++) {
+		String nest = map.GetKey(i);
+		Vector<PkgInfo>& pkgs = map[i];
+		Sort(pkgs, [=](const PkgInfo& a, const PkgInfo& b) {
+			return a.name < b.name;
+		});
+		qtf << "\1" << nest << "\1&";
+		String g = GetGitBranch(nest);
+		if(g.GetCount())
+			qtf << "[$L@bl100 \1" << g << "\1&]";
+		else
+			qtf << "[@K/l100 not a git repo&]";
+		qtf << "[l100 ";
+		for(int i = 0; i < pkgs.GetCount(); i++) {
+			const PkgInfo& p = pkgs[i];
+			if(i)
+				qtf << ", ";
+			qtf << "[";
+			if(p.bold)
+				qtf << "*";
+			if(p.italic)
+				qtf << "/";
+			if(!IsNull(p.ink))
+				qtf << "@(" << p.ink.GetR() << "." << p.ink.GetG() << "." << p.ink.GetB() << ")";
+			qtf << " \1" << p.name << "\1]";
+		}
+		qtf << "&]";
+	}
+	qtf.TrimEnd("&]");
+	return qtf;
+}
+
+Rect Ide::GetAssemblyInfoRect(Size *tp)
+{
+	Rect r = display_main.GetScreenRect();
+	r.top = r.bottom - GetStdFontCy() / 2;
+	RichText txt = ParseQTF(GetAssemblyInfoQtf());
+	txt.ApplyZoom(GetRichTextStdScreenZoom());
+	Size tsz;
+	tsz.cx = min(txt.GetWidth(), DPI(450));
+	tsz.cy = txt.GetHeight(tsz.cx);
+	if(tp)
+		*tp = tsz;
+	r.left = r.right - tsz.cx - DPI(4) - 2;
+	r.bottom = r.top + tsz.cy + DPI(4) + 2;
+	return r - GetScreenRect().TopLeft();
 }
 
 void Ide::Periodic()
@@ -703,6 +796,11 @@ void Ide::Periodic()
 	if(fileinfo_visible != b) {
 		RefreshFrame(GetFileInfoRect());
 		fileinfo_visible = b;
+	}
+	b = display_main.IsVisible() && display_main.GetScreenRect().Contains(GetMousePos());
+	if(assemblyinfo_visible != b) {
+		RefreshFrame(GetAssemblyInfoRect());
+		assemblyinfo_visible = b;
 	}
 }
 
@@ -720,7 +818,6 @@ struct IndexerProgress : ImageMaker {
 		ImagePainter iw(sz);
 		iw.Clear(RGBAZero());
 		iw.Move(sz.cx / 2, sz.cy / 2).Arc(sz.cx / 2, sz.cy / 2, sz.cx / 2, -M_PI/2, pos * M_2PI).Line(sz.cx / 2, sz.cy / 2).Fill(SGray());
-	//	iw.DrawImage(0, 0, IdeImg::Indexer());
 		return iw;
 	}
 };

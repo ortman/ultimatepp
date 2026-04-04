@@ -174,6 +174,14 @@ void LogOut::Line(const char *s, int len, int depth)
 		p += ll;
 		prev_msecs = t;
 	}
+#ifdef PLATFORM_POSIX
+	if((options & LOG_PROCESS_ID) && line_begin) {
+		ll = snprintf(p, 600, "PID %d ", getpid());
+		if(ll < 0)
+			return;
+		p += ll;
+	}
+#endif
 	if((options & (LOG_TIMESTAMP|LOG_TIMESTAMP_UTC)) && line_begin) {
 		Time t = (options & LOG_TIMESTAMP_UTC) ? GetUtcTime() : GetSysTime();
 		ll = snprintf(p, 600, "%02d.%02d.%04d %02d:%02d:%02d ",
@@ -310,8 +318,8 @@ void  LogStream::_Put(const void *data, dword size)
 
 #ifdef flagCHECKINIT // Adds heap check and additional logging INITBLOCKs
 
-void InitBlockBegin__(const char *fn, int line) {
-	RLOG(fn << " " << line << " init block");
+void InitBlockBegin__(const char *fn, int line, const char *kind) {
+	RLOG(fn << " " << line << " " << kind << " started");
 #ifdef HEAPDBG
 	MemoryCheckDebug();
 #else
@@ -319,8 +327,8 @@ void InitBlockBegin__(const char *fn, int line) {
 #endif
 }
 
-void InitBlockEnd__(const char *fn, int line) {
-	RLOG(fn << " " << line << " init block finished");
+void InitBlockEnd__(const char *fn, int line, const char *kind) {
+	RLOG(fn << " " << line << " " << kind << " finished");
 #ifdef HEAPDBG
 	MemoryCheckDebug();
 #else

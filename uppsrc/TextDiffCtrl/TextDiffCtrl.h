@@ -24,25 +24,24 @@ public:
 };
 
 Array<TextSection> CompareLineMaps(const Vector<String>& l1, const Vector<String>& l2);
-Vector<String>     GetLineMap(Stream& stream);
-Vector<String>     GetFileLineMap(const String& path);
-Vector<String>     GetStringLineMap(const String &s);
+Vector<String>     GetLineMap(Stream& stream, bool ignore_indent = false);
 
 class TextCompareCtrl : public Ctrl {
 public:
-	virtual void   Paint(Draw& draw);
-	virtual void   Layout();
-	virtual void   MouseWheel(Point pt, int zdelta, dword keyflags);
-	virtual void   HorzMouseWheel(Point pt, int zdelta, dword keyflags);
-	virtual void   MouseMove(Point pt, dword keyflags);
-	virtual void   LeftDown(Point pt, dword keyflags);
-	virtual void   LeftDouble(Point pt, dword keyflags);
-	virtual void   LeftUp(Point pt, dword keyflags);
-	virtual void   LeftRepeat(Point pt, dword keyflags);
-	virtual void   RightDown(Point p, dword keyflags);
-	virtual Image  CursorImage(Point p, dword keyflags);
-	virtual bool   Key(dword key, int repcnt);
-	virtual void   LostFocus();
+	void   Paint(Draw& draw) override;
+	void   Layout() override;
+	void   MouseWheel(Point pt, int zdelta, dword keyflags) override;
+	void   HorzMouseWheel(Point pt, int zdelta, dword keyflags) override;
+	void   MouseMove(Point pt, dword keyflags) override;
+	void   MouseLeave() override;
+	void   LeftDown(Point pt, dword keyflags) override;
+	void   LeftDouble(Point pt, dword keyflags) override;
+	void   LeftUp(Point pt, dword keyflags) override;
+	void   LeftRepeat(Point pt, dword keyflags) override;
+	void   RightDown(Point p, dword keyflags) override;
+	Image  CursorImage(Point p, dword keyflags) override;
+	bool   Key(dword key, int repcnt) override;
+	void   LostFocus() override;
 
 	struct Blame : Moveable<Blame> {
 		String hash;
@@ -62,7 +61,7 @@ private:
 	void           Copy();
 	int            GetLineNo(int y, int& yy);
 	int            GetMatchLen(const wchar *s1, const wchar *s2, int len);
-	bool           LineDiff(bool left, Vector<LineEdit::Highlight>& hln, Color eq_color,
+	bool           LineDiff(Vector<LineEdit::Highlight>& hln, Color eq_color,
 	                        const wchar *s1, int l1, int h1,
 	                        const wchar *s2, int l2, int h2, int depth);
 
@@ -80,6 +79,7 @@ private:
 	};
 	Array<Line>    lines;
 	Vector<Blame>  blame;
+	int            blame_line;
 	int            maxwidth;
 	ScrollBars     scroll;
 	Font           font;
@@ -98,6 +98,8 @@ private:
 	bool           show_diff_highlight;
 	bool           change_paper_color;
 	bool           left = false;
+	bool           scrollbar_items_dirty = true;
+	Image          scrollbar_items;
 	
 	struct ScrollBarItems : Ctrl {
 		TextCompareCtrl& diff;
@@ -290,6 +292,7 @@ protected:
 	WithDropChoice<EditString> dir2;
 	Option                     hidden;
 	Option                     split_lines;
+	Option                     ignore_indentation;
 	Button                     compare;
 	
 	Option                     removed, added, modified;
@@ -353,6 +356,8 @@ public:
 	String GetRightFile() const                 { return ~rfile; }
 	int    GetLMid() const                      { return lmid; }
 	int    GetRMid() const                      { return rmid; }
+	
+	static bool GetIgnoreIndentation(Ctrl *q)   { auto *p = q->GetAscendant<DirDiffDlg>(); return p && p->ignore_indentation; }
 
 	DirDiffDlg();
 };

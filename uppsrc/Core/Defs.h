@@ -75,15 +75,15 @@ inline  void LOGNOP__() {}
 #endif
 
 #ifdef flagCHECKINIT
-void InitBlockBegin__(const char *fn, int line);
-void InitBlockEnd__(const char *fn, int line);
+void InitBlockBegin__(const char *fn, int line, const char *kind);
+void InitBlockEnd__(const char *fn, int line, const char *kind);
 #else
-inline void InitBlockBegin__(const char *, int) {}
-inline void InitBlockEnd__(const char *, int) {}
+inline void InitBlockBegin__(const char *, int, const char *) {}
+inline void InitBlockEnd__(const char *, int, const char *) {}
 #endif
 
 struct Callinit {
-	Callinit(void (*fn)(), const char *cpp, int line) { InitBlockBegin__(cpp, line); fn(); InitBlockEnd__(cpp, line); }
+	Callinit(void (*fn)(), const char *cpp, int line) { InitBlockBegin__(cpp, line, "INITBLOCK"); fn(); InitBlockEnd__(cpp, line, "INITBLOCK"); }
 	Callinit(void (*fn)())                            { fn(); }
 };
 
@@ -118,7 +118,9 @@ void x##__initializer_fn(); \
 void x##__initializer() \
 { \
 	ONCELOCK { \
+		InitBlockBegin__(__FILE__, __LINE__, "INITIALIZER(" #x ")"); \
 		x##__initializer_fn(); \
+		InitBlockEnd__(__FILE__, __LINE__, "INITIALIZER(" #x ")"); \
 	} \
 } \
 void x##__initializer_fn()
@@ -254,11 +256,11 @@ extern "C" int COMBINE(i, _count); \
 extern "C" char *COMBINE(i, _files)[];
 
 class NoCopy {
-private:
-	NoCopy(const NoCopy&);
-	void operator=(const NoCopy&);
 public:
-	NoCopy() {}
+	NoCopy() = default;
+	
+	NoCopy(const NoCopy&) = delete;
+	void operator=(const NoCopy&) = delete;
 };
 
 const int    INT_NULL           =    INT_MIN;
@@ -275,7 +277,7 @@ public:
 	operator float() const              { return FLOAT_NULL; }
 	operator bool() const               { return false; }
 
-	Nuller() {}
+	Nuller() = default;
 };
 
 extern const Nuller Null;

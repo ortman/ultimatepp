@@ -252,6 +252,7 @@ void CodeEditor::PostInsert(int pos, const WString& text) {
 		if(text.GetCount() > 200 || GetRefreshInfo(pos) != refresh_info || text.Find('\n') >= 0)
 			Refresh();
 		else
+		if(!console_mode)
 			CheckSyntaxRefresh(pos, text);
 	}
 	WhenUpdate();
@@ -341,7 +342,7 @@ void CodeEditor::CheckBrackets()
 	CancelBracketHighlight(highlight_bracket_pos0);
 	CancelBracketHighlight(highlight_bracket_pos);
 	if(!IsSelection()) {
-		if(GetSyntax(GetCursorLine())->CheckBrackets(*this, highlight_bracket_pos0, highlight_bracket_pos)) {
+		if(!console_mode && GetSyntax(GetCursorLine())->CheckBrackets(*this, highlight_bracket_pos0, highlight_bracket_pos)) {
 			RefreshLine(GetLine(highlight_bracket_pos0));
 			RefreshLine(GetLine(highlight_bracket_pos));
 			bracket_start = GetTimeClick();
@@ -856,7 +857,7 @@ void CodeEditor::SyncTip()
 		Size sz = tip.AddFrameSize(mt.sz);
 		int y = p.y + DPI(24);
 		if(y + sz.cy > wa.bottom)
-			y = max(0, p.y - sz.cy);
+			y = max(0, p.y - sz.cy - DPI(4));
 		int x = p.x;
 		if(x + sz.cx > wa.right)
 			x = max(0, wa.right - sz.cx);
@@ -867,6 +868,13 @@ void CodeEditor::SyncTip()
 	}
 	else
 		CloseTip();
+}
+
+void CodeEditor::CloseTip()
+{
+	if(tip.IsOpen())
+		tip.Close();
+	tip.d = NULL;
 }
 
 bool CodeEditor::MouseSelSpecial(Point p, dword flags) {

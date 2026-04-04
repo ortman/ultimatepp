@@ -101,10 +101,10 @@ enum CtrlCoreFlags : dword {
 	K_PEN          = 0x80,
 
 	IK_DBL_CLICK   = 0x40000001, // this is just to get the info that the entry is equal to dbl-click to the menu
-	IK_CLICK   = 0x40000002, // this is just to get the info that the entry is equal to dbl-click to the menu
+	IK_CLICK       = 0x40000002, // this is just to get the info that the entry is equal to dbl-click to the menu
 
-	K_MOUSE_FORWARD = 0x40000002,
-	K_MOUSE_BACKWARD = 0x40000003
+	K_MOUSE_FORWARD  = 0x40000003,
+	K_MOUSE_BACKWARD = 0x40000004
 };
 
 #include "MKeys.h"
@@ -675,6 +675,8 @@ private:
 	static Point     dndpos;
 	static bool      dndframe;
 	static PasteClip dndclip;
+	
+	static int       last_mouse_action;
 
 	void    DnD(Point p, PasteClip& clip);
 	static void DnDRepeat();
@@ -700,8 +702,11 @@ private:
 	Rect    GetPreeditScreenRect();
 	void    SyncPreedit();
 	void    ShowPreedit(const WString& text, int cursor = INT_MAX);
-	static void HidePreedit();
-	static void PreeditSync(void (*enable_preedit)(Ctrl *top, bool enable));
+
+	static  void HidePreedit();
+	static  void PreeditSync(void (*enable_preedit)(Ctrl *top, bool enable));
+
+	static  bool MouseActiveCtrl(Ctrl *w, Point p);
 
 // System window interface...
 	void WndShow(bool b);

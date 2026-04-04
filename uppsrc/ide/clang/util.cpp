@@ -100,19 +100,43 @@ bool IsVariable(int kind)
 	return findarg(kind, CXCursor_VarDecl, CXCursor_FieldDecl) >= 0;
 }
 
-int FindId(const String& s, const String& id) {
+int FindFirstId(const String& s, const String& id)
+{
 	if(id.GetCount() == 0)
 		return -1;
 	int q = 0;
 	for(;;) {
 		q = s.Find(id, q);
 		if(q < 0)
-			return -1;
+			break;
 		if((q == 0 || !iscid(s[q - 1])) && // character before id
-		   (q + id.GetCount() >= s.GetCount() || !iscid(s[q + id.GetCount()]))) // and after..
-			return q;
-		q++;
+		   (q + id.GetCount() >= s.GetCount() || !iscid(s[q + id.GetCount()]))) // and after
+		    return q;
+		else
+			q++;
 	}
+	return -1;
+};
+
+int FindLastId(const String& s, const String& id)
+{
+	if(id.GetCount() == 0)
+		return -1;
+	int q = 0;
+	int r = -1;
+	for(;;) {
+		q = s.Find(id, q);
+		if(q < 0)
+			break;
+		if((q == 0 || !iscid(s[q - 1])) && // character before id
+		   (q + id.GetCount() >= s.GetCount() || !iscid(s[q + id.GetCount()]))) { // and after..
+			r = q; // need to find last one...
+			q += id.GetCount();
+		}
+		else
+			q++;
+	}
+	return r;
 };
 
 String GetClass(const AnnotationItem& m)
@@ -129,7 +153,7 @@ String GetClass(const AnnotationItem& m)
 		q = cls.Find('~');
 	}
 	else
-		q = FindId(cls, m.name);
+		q = FindLastId(cls, m.name);
 
 	if(q >= 0) {
 		cls.Trim(q);
@@ -162,7 +186,7 @@ String MakeDefinition(const AnnotationItem& m, const String& klass)
 	String result;
 	String pretty = m.pretty;
 	pretty.TrimStart("static ");
-	int q = FindId(pretty, m.name);
+	int q = FindLastId(pretty, m.name);
 	if(q < 0)
 		result << pretty;
 	else

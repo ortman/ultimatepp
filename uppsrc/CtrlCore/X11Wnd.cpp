@@ -24,6 +24,7 @@ bool __X11_Grabbing = false;
 
 #define x_Event(x) { x, #x },
 
+#ifdef _DEBUG
 static
 struct XEventMap {
 	int         ID;
@@ -33,6 +34,7 @@ sXevent[] = {
 #include "X11Event.i"
 	{ 0, NULL }
 };
+#endif
 
 ArrayMap<Window, Ctrl::XWindow>& Ctrl::Xwindow()
 {
@@ -54,7 +56,7 @@ void Ctrl::DoPaint(const Vector<Rect>& invalid)
 {
 	GuiLock __;
 	Window xwin = GetWindow();
-	if(utop && IsVisible()) {
+	if(top && IsVisible()) {
 		LTIMING("DoPaint");
 		fullrefresh = false;
 //		if(GLX) return;
@@ -498,9 +500,9 @@ void Ctrl::Create(Ctrl *owner, bool redirect, bool savebits)
 	cw.ctrl = this;
 	cw.exposed = false;
 	cw.owner = owner;
-	
+
 	cw.xic = NULL;
-	
+
 	if(xim) {
 		cw.xic = XCreateIC(xim,
 		                   XNInputStyle, XIMPreeditNothing|XIMStatusNothing,
@@ -529,9 +531,9 @@ void Ctrl::Create(Ctrl *owner, bool redirect, bool savebits)
 		XChangeProperty(Xdisplay, w, XInternAtom(Xdisplay, "_NET_WM_WINDOW_TYPE", false), XA_ATOM, 32, 
 		                PropModeReplace, (byte *)&windowType, 1);
 	}
-	
+
 	RefreshLayoutDeep();
-	
+
 	SyncIMPosition();
 }
 
@@ -647,7 +649,7 @@ void Ctrl::PopUp(Ctrl *owner, bool savebits, bool activate, bool, bool)
 	WndShow(visible);
 	if(activate && IsEnabled())
 		SetFocus();
-	if(utop) utop->owner = owner;
+	if(top) utop->owner = owner;
 	StateH(OPEN);
 }
 
